@@ -1,0 +1,38 @@
+@startuml
+skinparam interface {
+  backgroundColor gray
+  borderColor black
+}
+
+skinparam component {
+  BorderColor black
+  BackgroundColor white
+}
+
+start
+
+:Get YAML manifest from HTTP;
+:Resolve thing ID from specified command;
+:Find update settings for the thing ID in manifest;
+if (current local version matches update settings) then (already up-to-date)
+  :Execute the application launcher;
+  :Wait application termination;
+else (need update)
+  :Resolve app archive URL according the update settings;
+  :Download the app archive as temporary file;
+  :Check the app archive is wellformed;
+  :Rename the previous application directory;
+  :Extract the app archive to the new application directory;
+  :Try to spawn the application;
+  if (application spawned) then (success)
+    :Wait application termination;
+  else (failed)
+    :Rename the application directory as update failure;
+    :Restore the previous application  directory;
+    :Execute the application launcher;
+    :Wait application termination;
+  endif
+endif
+
+stop
+@enduml
