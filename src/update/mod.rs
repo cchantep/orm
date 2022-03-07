@@ -181,15 +181,23 @@ pub async fn execute<'x>(
 
     let entry_prefix = Path::new(app_name);
 
+    let extracted_dir = tempfile::tempdir()?;
+    // Temporary directory is cleaned in case of error when process terminates
+
+    debug!("Checking archive & extracting to {:?}", extracted_dir);
+
+    let extracted_path = extracted_dir.path();
+
     let ar_entries: Vec<PathBuf> = app_archive
         .entries()?
         .filter_map(|e| e.ok())
         .map(|mut entry| -> Result<PathBuf, std::io::Error> {
-            let path = entry.path()?.to_path_buf().to_owned();
+            let entry_path = entry.path()?.to_path_buf().to_owned();
+            let extracted_entry = extracted_path.join(&entry_path);
 
-            entry.unpack(&path)?;
+            debug!("Extracted entry = {:?}", extracted_entry);
 
-            Ok(path)
+            entry.unpack(extracted_entry).map(|_| entry_path)
         })
         .filter_map(|p| p.ok())
         .filter(|p| match p.parent() {
@@ -216,13 +224,11 @@ pub async fn execute<'x>(
 
     fs::rename(app_dir, archived_dir)?;
 
-    app_archive.unpack(app_dir).and_then(|unpacked| {
-        debug!("Unpacked = {:?}", unpacked);
-
+    fs::rename(extracted_path.join(entry_prefix), app_dir).and_then(|_| {
         let run_script = app_dir.join("run.sh");
         
-        debug!("Run script: {:?}", run_script);
-        
+        debug!("Updated run script: {:?}", run_script);
+
         Command::new(run_script)
             .spawn()
             .and_then(|mut child| {
@@ -231,8 +237,8 @@ pub async fn execute<'x>(
                 let mut version_marker = fs::File::create(
                     app_dir.join(".orm_version"))?;
                 
-            write!(&mut version_marker, "{}", current_version)?;
-                debug!("Current version marker = {}", current_version);
+                write!(&mut version_marker, "{}", device.version)?;
+                debug!("Current version marker = {}", device.version);
                 
                 child.wait().map(ExecutionStatus::AppTerminated)
             })
@@ -255,8 +261,8 @@ pub async fn execute<'x>(
         before_revert
             .and_then(|_| fs::rename(app_dir_archived_path(), app_dir))
             .map(|_| ExecutionStatus::NoUpdate(msg))
-            .map_err(|e| Box::new(err::Error::from(e)) as Box<dyn 'x + Error + Send + Sync>)
-    })
+
+    }).map_err(|e| Box::new(err::Error::from(e)) as Box<dyn 'x + Error + Send + Sync>)
 }
 
 /// Returns the parent URI.

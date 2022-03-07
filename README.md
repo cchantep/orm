@@ -36,6 +36,10 @@ No runtime configuration or setting is required.
 
     /path/to/orm
 
+Either execute the current version if up-to-date, or update before as bellow.
+
+![Update workflow](https://cchantep.github.io/orm/update.png)
+
 ### YAML manifest
 
 The update manifest must be a valid YAML file, accessible by HTTP GET.

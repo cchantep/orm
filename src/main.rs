@@ -49,14 +49,20 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let version_path = app_dir.join(".orm_version");
 
-    if !version_path.is_file() {
-        return boxed_error!("Missing ORM version marker: {:?}", version_path);
-    }
+    let resolve_current_version: Result<Version, Box<dyn Error + Send + Sync>> = {
+        if !version_path.is_file() {
+            warn!(
+                "Missing ORM version marker {:?}; Fallback to 0", version_path);
 
-    let version_content = std::fs::read_to_string(version_path)?;
+            Ok(Version("0".to_string()))
+        } else {
+            let version_content = std::fs::read_to_string(version_path)?;
 
-    // TODO: Regex to validate?
-    let current_version = Version(version_content.trim().to_string());
+            // TODO: Regex to validate?
+            Ok(Version(version_content.trim().to_string()))
+        }
+    };
+    let current_version = resolve_current_version?;
 
     info!("Current version is {}", current_version);
 
@@ -103,16 +109,16 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 fn setup_logging() {
     // TODO: Check datalog logging
 
-    if cfg!(debug_assertions) {
+    if std::env::var("RUST_LOG").map_or_else(|_| false, |_| true) {
+        env_logger::init()
+    } else if cfg!(debug_assertions) {
         env_logger::Builder::new()
             .filter_level(log::LevelFilter::Debug)
             .init();
-    } else if !log::log_enabled!(log::Level::Info) {
+    } else {
         env_logger::Builder::new()
             .filter_level(log::LevelFilter::Info)
             .init();
-    } else {
-        env_logger::init();
     }
 }
 
